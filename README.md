@@ -16,3 +16,7 @@ Frames render to `./renders/panel_XX.png` alongside your current working directo
 3. Put the panel title on the first line and the panel dialogue/action on the following lines. Blank lines are ignored.
 
 When the folder exists, `render.py` will render your custom files in alphabetical order. If no files are present, it falls back to the built-in Terminator T-2045 storyboard text.
+
+### Included sample script
+
+This repository ships with a prewritten **TERMINATOR T-2045** storyboard under `scripts/`. You can use it as-is to generate panels or as a template for your own `.txt` files.
