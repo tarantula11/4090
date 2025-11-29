@@ -9,6 +9,8 @@ and renders them to PNG files under ./renders.
 """
 
 import os
+from pathlib import Path
+
 import bpy
 
 
@@ -80,7 +82,8 @@ def apply_emission_to_text(text_obj):
     text_obj.data.materials.append(mat)
 
 
-PANELS = [
+# Default panels used when no custom script files are found in ./scripts.
+DEFAULT_PANELS = [
     {
         "title": "PAGE 1 - A BAD DECISION IN 2018",
         "lines": [
@@ -211,6 +214,27 @@ PANELS = [
 ]
 
 
+def load_panels_from_directory(base_dir: Path):
+    scripts_dir = base_dir / "scripts"
+    if not scripts_dir.exists():
+        return None
+
+    panel_files = sorted(p for p in scripts_dir.glob("*.txt") if p.is_file())
+    if not panel_files:
+        return None
+
+    panels = []
+    for panel_file in panel_files:
+        text = panel_file.read_text(encoding="utf-8").splitlines()
+        if not text:
+            continue
+        title = text[0].strip()
+        lines = [line.strip() for line in text[1:] if line.strip()]
+        panels.append({"title": title, "lines": lines})
+
+    return panels or None
+
+
 def configure_render(output_dir: str):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
@@ -228,8 +252,8 @@ def build_panel_text(panel):
     return title + "\n\n" + "\n".join(lines)
 
 
-def render_panels(text_obj, output_dir):
-    for idx, panel in enumerate(PANELS, start=1):
+def render_panels(text_obj, output_dir, panels):
+    for idx, panel in enumerate(panels, start=1):
         text_obj.data.body = build_panel_text(panel)
         panel_path = os.path.join(output_dir, f"panel_{idx:02d}")
         bpy.context.scene.render.filepath = panel_path
@@ -245,6 +269,8 @@ if __name__ == "__main__":
     setup_lighting()
     apply_emission_to_text(text_obj)
 
-    output_dir = os.path.join(bpy.path.abspath("//"), "renders")
+    base_dir = Path(bpy.path.abspath("//"))
+    output_dir = os.path.join(base_dir, "renders")
+    panels = load_panels_from_directory(base_dir) or DEFAULT_PANELS
     configure_render(output_dir)
-    render_panels(text_obj, output_dir)
+    render_panels(text_obj, output_dir, panels)
