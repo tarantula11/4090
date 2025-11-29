@@ -7,7 +7,7 @@ Run in Blender (headless or GUI):
 ```bash
 blender -b -P render.py
 ```
-Frames render to `./renders/panel_XX.png` alongside your current working directory. No existing `.blend` file is required because the script builds the scene from scratch.
+Frames render to `./renders/panel_XX.png` alongside your current working directory. No existing `.blend` file is required because the script builds the scene from scratch (clears objects/worlds, then creates a fresh camera, light, and emissive text object programmatically).
 
 Quick syntax check without Blender (verifies the file parses):
 ```bash

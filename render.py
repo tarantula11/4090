@@ -318,13 +318,20 @@ def render_panels(text_obj, output_dir, panels):
         print(f"Rendered {panel_path}.png")
 
 
-if __name__ == "__main__":
+def build_storyboard_scene():
+    """Reset Blender and create a minimal storyboard setup from scratch."""
+
     reset_scene()
     setup_world()
     setup_camera()
     text_obj = setup_text_object()
     setup_lighting()
     apply_emission_to_text(text_obj)
+    return text_obj
+
+
+if __name__ == "__main__":
+    text_obj = build_storyboard_scene()
 
     base_dir = Path(bpy.path.abspath("//"))
     output_dir = os.path.join(base_dir, "renders")
