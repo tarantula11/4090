@@ -9,6 +9,11 @@ blender -b -P render.py
 ```
 Frames render to `./renders/panel_XX.png` alongside your current working directory. No existing `.blend` file is required because the script builds the scene from scratch.
 
+Quick syntax check without Blender (verifies the file parses):
+```bash
+python -m compileall render.py
+```
+
 ### Authoring your own panels
 
 1. Create a `scripts/` folder next to `render.py`.
