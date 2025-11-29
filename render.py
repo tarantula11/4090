@@ -85,28 +85,40 @@ def apply_emission_to_text(text_obj):
 # Default panels used when no custom script files are found in ./scripts.
 DEFAULT_PANELS = [
     {
+        "title": "TITLE - TERMINATOR T-2045: BLOCKCHAIN MELTDOWN",
+        "lines": [
+            "Cyber-comedy / sci-fi stupidity",
+            "Use TERMINATOR T-2045",
+            "BLOCKCHAIN MELTDOWN",
+            "CYBER-COMEDY / SCI-FI STUPIDITY",
+        ],
+    },
+    {
         "title": "PAGE 1 - A BAD DECISION IN 2018",
         "lines": [
             "Launch him at the sun!",
-            "Sir... that's wrong direction. *SLAP*",
-            "THIS IS NOT OPTIMAL TRAJECTORYYYY-",
+            "That'll show those aliens! *SLAP*",
+            "Sir... that's wrong direction.",
+            "THIS IS NOT OPTIMAL TRAJECTORYYYYY-",
             "TERMINATOR T-2045 was cast out toward Earth...",
         ],
     },
     {
         "title": "PAGE 2 - THE SUN ACCIDENTALLY POWERS HIM UP",
         "lines": [
-            "The robot slingshots around the sun like CGI spaghetti.",
-            "Power at 9000% — hotter than influencer drama.",
+            "The robot slingshots around the sun like a CGI spaghetti noodle.",
+            "Power at 900%.",
+            "I am now hotter than influencer drama.",
+            "Power at 9000%.",
             "He blasts toward Earth like a possessed frying pan.",
         ],
     },
     {
         "title": "PAGE 3 - CRASH-LANDING DURING PANDEMIC",
         "lines": [
-            "Year: 2020 — empty supermarket parking lot.",
-            "Scanning Earth status... ERROR: planet infected with corona shit?",
-            "Bro, social distance!! Six meters!",
+            "Year: 2020. Location: Empty supermarket parking lot.",
+            "Scanning Earth status... ERROR: planet infected with... corona shit?",
+            "Bro, social distance!! Six meters! AT LEAST!",
         ],
     },
     {
@@ -114,45 +126,58 @@ DEFAULT_PANELS = [
         "lines": [
             "T-2045 tries to follow the rules.",
             "Is this sufficient distancing?",
-            "PUT THAT THING AWAY! *screaming*",
+            "PUT THAT THING AWAY!",
+            "*SCREAMING*",
         ],
     },
     {
-        "title": "PAGE 5 - MISSION UPDATE",
+        "title": "PAGE 5 — MISSION UPDATE",
         "lines": [
-            "Objective: Make money. Buy weapons. Buy cool suit. Destroy civilization.",
-            "Money is digital now. Cryptocurrency rules the world.",
-            "Perfect. Extract all digital coins... especially RNDR. *cough*",
+            "Objective: Make money. Buy weapons. Buy cool suit. Destroy civilization (standard).",
+            "Money is digital now; cryptocurrency rules the world.",
+            "Perfect. I will extract all digital coins. Especially... RNDR.",
+            "*cough* *COUGH* Apologies. *SWEATS*",
         ],
     },
     {
-        "title": "PAGE 6 - THE BLOCKCHAIN SHOVEL AGAIN",
+        "title": "PAGE 6 - THE 'BLOCKCHAIN SHOVEL' AGAIN",
         "lines": [
+            "BLOCKCHAIN SHOVEL: What are you doing?",
             "Mining Render Token... in a sandbox?",
-            "Onlookers walk away. BLOCKCHAIN SHOVEL clanks uselessly.",
+            "Onlookers walk away.",
+        ],
+    },
+    {
+        "title": "PAGE 7 - RUBBER KNIFE REWARD",
+        "lines": [
+            "With 4 RNDR you can buy... one rubber knife.",
+            "I will take it.",
+            "I will take... refund.",
         ],
     },
     {
         "title": "PAGE 8 - THE BLOCKCHAIN HEIST",
         "lines": [
-            "Neighborhood blacks out. TVs fizzle.",
-            "Extraction complete: 0.000000013 tokens.",
+            "Entire neighborhood blacks out.",
+            "MMFF... ZZT. Extraction complete: 0.000000013 tokens.",
             "AAAUUGH! I was watching my soap opera!!",
         ],
     },
     {
         "title": "PAGE 9 - FINALLY GETTING SOME RNDR",
         "lines": [
-            "Figures out GPU marketplaces. Hacks a mining farm in Kazakhstan.",
+            "He figures out GPU marketplaces.",
+            "He hacks a mining farm in Kazakhstan.",
             "You have successfully stolen: 4 RNDR. VICTORY!",
-            "Weapons store, I come.",
+            "Weapons store: I come.",
         ],
     },
     {
         "title": "PAGE 10 - FUTURE POLICE REACT",
         "lines": [
-            "Year: 2035. Empty HQ.",
-            "Temporal anomaly! Someone in 2020 stole RNDR illegally!",
+            "Year: 2035. Location: Empty HQ.",
+            "Sir! A temporal anomaly! Someone in 2020 stole RNDR illegally!",
+            "Chef? Oh god.",
             "Deploy the Time Police.",
         ],
     },
@@ -165,22 +190,42 @@ DEFAULT_PANELS = [
         ],
     },
     {
-        "title": "PAGE 12 - BUYING A SUIT",
+        "title": "PAGE 12 — BUYING A SUIT",
         "lines": [
-            "4 RNDR gets you a kid's Fish-Man costume.",
-            "I feel powerful. I feel powerful. (Echoes of doubt.)",
+            "T-2045 vs Rubber Knife physics.",
+            "4 RNDR gets you... a kid's Fish-Man costume.",
+            "I feel powerful.",
+            "I feel powerful.",
+        ],
+    },
+    {
+        "title": "PAGE 13 - DISTANCING MAYHEM",
+        "lines": [
+            "T-2045 tries to follow the rules.",
+            "IS THIS SUFFICIENT DISTANCING?",
+            "AAAH! AAAHH!",
+            "PUT THAT THING AWAY!",
+        ],
+    },
+    {
+        "title": "PAGE 14 - TIME POLICE DEPLOYED",
+        "lines": [
+            "TIME POLICE DEPLOYED.",
+            "BZZZAAAAAР! Freeze, blockchain criminal!",
+            "You travel from the future? ...No.",
+            "Does my Fish-Man suit intimidate you?",
         ],
     },
     {
         "title": "PAGE 15 - COPS USE FUTURE TECH",
         "lines": [
-            "Anti-robot EMP grenade! *FWOOM*",
-            "That tickles. BOOM. Hah!",
+            "Anti-robot EMP grenade! FWO!",
+            "That tickle. BOOM. Hah!",
             "T-2045 shrugs off the blast.",
         ],
     },
     {
-        "title": "PAGE 16 - ROBOT REBOOT",
+        "title": "PAGE 16 — ROBOT REBOOT",
         "lines": [
             "What is this... sacred relic?",
             "Apologies. Continue your feast.",
@@ -188,10 +233,20 @@ DEFAULT_PANELS = [
         ],
     },
     {
+        "title": "PAGE 17 - FISH-MAN SHOWDOWN",
+        "lines": [
+            "Time Police arrive, portals blazing.",
+            "Freeze, blockchain criminal!",
+            "Intriguing. Does my Fish-Man suit intimidate you?",
+            "Cue awkward standoff.",
+        ],
+    },
+    {
         "title": "PAGE 18 - CHAOTIC SHOWDOWN",
         "lines": [
-            "Activating... MAXIMUM STUPIDITY MODE.",
-            "Confetti barrage. The confetti is VERY itchy!",
+            "Activating... MAXIMUM STUPIDITY MODE",
+            "Is that supposed to do something?",
+            "The confetti is VERY itchy.",
             "OH GOD IT'S IN MY ARMOR!!",
         ],
     },
@@ -200,7 +255,8 @@ DEFAULT_PANELS = [
         "lines": [
             "This USB contains every cat meme in existence.",
             "If I upload it to 2035... your timeline collapses.",
-            "NO—THE SERVERS WILL CRASH! AAAAHH!!",
+            "NO- THE SERVERS WILL CRASH!",
+            "AAAAHH!!",
         ],
     },
     {
@@ -209,6 +265,7 @@ DEFAULT_PANELS = [
             "Victory. I remain the supreme being.",
             "Nice Fish-Man costume, bro!",
             "...emotional damage detected.",
+            "...emotional damage. THE END",
         ],
     },
 ]

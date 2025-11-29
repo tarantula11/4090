@@ -19,4 +19,4 @@ When the folder exists, `render.py` will render your custom files in alphabetica
 
 ### Included sample script
 
-This repository ships with a prewritten **TERMINATOR T-2045** storyboard under `scripts/`. You can use it as-is to generate panels or as a template for your own `.txt` files.
+This repository ships with a prewritten **TERMINATOR T-2045** storyboard under `scripts/` (cover + pages 1–20). You can use it as-is to generate panels or as a template for your own `.txt` files.
