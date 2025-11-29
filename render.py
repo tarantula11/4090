@@ -22,6 +22,8 @@ def reset_scene():
         bpy.data.cameras.remove(block)
     for block in bpy.data.lights:
         bpy.data.lights.remove(block)
+    for block in bpy.data.worlds:
+        bpy.data.worlds.remove(block)
 
 
 def setup_camera():
@@ -47,7 +49,12 @@ def setup_text_object():
 
 def setup_world():
     world = bpy.data.worlds.new("StoryboardWorld")
-    world.color = (0.1, 0.1, 0.1)
+    world.use_nodes = True
+    nodes = world.node_tree.nodes
+    background = nodes.get("Background")
+    if background:
+        background.inputs[0].default_value = (0.15, 0.15, 0.15, 1.0)
+        background.inputs[1].default_value = 2.0
     bpy.context.scene.world = world
 
 
