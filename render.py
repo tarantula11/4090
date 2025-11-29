@@ -2,7 +2,7 @@
 Blender batch-render helper for a toon storyboard of "TERMINATOR T-2045: BLOCKCHAIN MELTDOWN".
 
 Run with:
-    blender -b scene.blend -P render.py
+    blender -b -P render.py
 
 The script builds simple text-based storyboard panels (helpful for previs or animatics)
 and renders them to PNG files under ./renders.

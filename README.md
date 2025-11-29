@@ -5,6 +5,6 @@ Use `render.py` to build quick storyboard frames for **TERMINATOR T-2045: BLOCKC
 
 Run in Blender (headless or GUI):
 ```bash
-blender -b scene.blend -P render.py
+blender -b -P render.py
 ```
-Frames render to `./renders/panel_XX.png` alongside your `.blend` file.
+Frames render to `./renders/panel_XX.png` alongside your current working directory. No existing `.blend` file is required because the script builds the scene from scratch.
