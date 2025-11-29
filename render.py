@@ -47,8 +47,30 @@ def setup_text_object():
 
 def setup_world():
     world = bpy.data.worlds.new("StoryboardWorld")
-    world.color = (0.02, 0.02, 0.02)
+    world.color = (0.1, 0.1, 0.1)
     bpy.context.scene.world = world
+
+
+def setup_lighting():
+    light_data = bpy.data.lights.new(name="StoryboardKeyLight", type="AREA")
+    light_data.energy = 1500
+    light_obj = bpy.data.objects.new(name="StoryboardKeyLight", object_data=light_data)
+    light_obj.location = (0.0, -3.5, 2.5)
+    light_obj.rotation_euler = (0.9, 0.0, 0.0)
+    bpy.context.collection.objects.link(light_obj)
+
+
+def apply_emission_to_text(text_obj):
+    mat = bpy.data.materials.new(name="PanelTextEmission")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    emission = nodes.new(type="ShaderNodeEmission")
+    emission.inputs[1].default_value = 10.0
+    output = nodes.new(type="ShaderNodeOutputMaterial")
+    mat.node_tree.links.new(emission.outputs[0], output.inputs[0])
+    text_obj.data.materials.clear()
+    text_obj.data.materials.append(mat)
 
 
 PANELS = [
@@ -213,6 +235,8 @@ if __name__ == "__main__":
     setup_world()
     setup_camera()
     text_obj = setup_text_object()
+    setup_lighting()
+    apply_emission_to_text(text_obj)
 
     output_dir = os.path.join(bpy.path.abspath("//"), "renders")
     configure_render(output_dir)
