@@ -55,18 +55,26 @@ def setup_world():
     nodes = world.node_tree.nodes
     background = nodes.get("Background")
     if background:
-        background.inputs[0].default_value = (0.15, 0.15, 0.15, 1.0)
-        background.inputs[1].default_value = 2.0
+        background.inputs[0].default_value = (0.35, 0.35, 0.4, 1.0)
+        background.inputs[1].default_value = 4.0
     bpy.context.scene.world = world
 
 
 def setup_lighting():
     light_data = bpy.data.lights.new(name="StoryboardKeyLight", type="AREA")
-    light_data.energy = 1500
+    light_data.energy = 2000
     light_obj = bpy.data.objects.new(name="StoryboardKeyLight", object_data=light_data)
     light_obj.location = (0.0, -3.5, 2.5)
     light_obj.rotation_euler = (0.9, 0.0, 0.0)
     bpy.context.collection.objects.link(light_obj)
+
+    fill_data = bpy.data.lights.new(name="StoryboardFillLight", type="AREA")
+    fill_data.energy = 750
+    fill_data.shape = "DISK"
+    fill_obj = bpy.data.objects.new(name="StoryboardFillLight", object_data=fill_data)
+    fill_obj.location = (-3.0, 2.5, 1.5)
+    fill_obj.rotation_euler = (1.0, 0.0, 2.2)
+    bpy.context.collection.objects.link(fill_obj)
 
 
 def apply_emission_to_text(text_obj):
@@ -75,7 +83,7 @@ def apply_emission_to_text(text_obj):
     nodes = mat.node_tree.nodes
     nodes.clear()
     emission = nodes.new(type="ShaderNodeEmission")
-    emission.inputs[1].default_value = 10.0
+    emission.inputs[1].default_value = 25.0
     output = nodes.new(type="ShaderNodeOutputMaterial")
     mat.node_tree.links.new(emission.outputs[0], output.inputs[0])
     text_obj.data.materials.clear()
