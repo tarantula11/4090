@@ -1,7 +1,7 @@
 # 4090
 
 ## Blender toon storyboard renderer
-Use `render_toon_storyboard.py` to build toon-style storyboard frames for **TERMINATOR T-2045: BLOCKCHAIN MELTDOWN**. The script factory-resets Blender, rebuilds the world/camera, drops a 3-point toon light rig, assigns toon materials, spawns two simple characters plus speech bubbles, and enables Freestyle outlines on the first available view layer—so no `.blend` starter file is required.
+Use `render_toon_storyboard.py` to build toon-style storyboard frames for **TERMINATOR T-2045: BLOCKCHAIN MELTDOWN**. The script factory-resets Blender, rebuilds the world/camera, drops a 3-point toon light rig, assigns toon materials, spawns two simple characters plus speech bubbles, adds tails that point at speakers, and enables Freestyle outlines on the first available view layer—so no `.blend` starter file is required.
 
 Run in Blender (headless or GUI):
 ```bash
@@ -21,6 +21,15 @@ python -m compileall render_toon_storyboard.py
 3. Put the panel title on the first line and the panel dialogue/action on the following lines. Blank lines are ignored.
 
 When the folder exists, the renderer will render your custom files in alphabetical order. If no files are present, it falls back to the built-in Terminator T-2045 storyboard text.
+
+**Speaker placement + tails:**
+- Prefix lines with `L:` (left character) or `R:` (right character) to attach a bubble with a tail aimed at that character’s head.
+- Use `NARRATOR:` or `CAPTION:` for centered captions without a tail.
+- Lines without a prefix become centered captions.
+
+**Safe margins and toggles:**
+- `SAFE` (default `0.9`) clamps all text/bubbles to a safe frame area based on the camera’s ortho width/aspect.
+- `TAILS=0` disables bubble tails globally if you want floating rectangles only.
 
 ### Included sample script
 

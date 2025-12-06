@@ -3,8 +3,9 @@
 Toon Storyboard Renderer for "TERMINATOR T-2045: BLOCKCHAIN MELTDOWN"
 
 - Factory-resets Blender and builds everything (world, camera, toon lights/materials).
-- Adds two simple characters (Robot + Cop), speech bubbles, and Freestyle outlines.
+- Adds two simple characters (Robot + Cop), speech bubbles with tails, and Freestyle outlines.
 - Renders text-driven panels from ./scripts/*.txt (falls back to built-in panels).
+- Supports per-speaker prefixes (L:/R:/NARRATOR:/CAPTION:) and clamps bubbles to a safe frame area.
 - Headless-safe. Works in Blender 3.6+ (Eevee + Freestyle).
 Run:
     blender -b -P render_toon_storyboard.py
@@ -12,440 +13,440 @@ Quick syntax check without Blender:
     python -m compileall render_toon_storyboard.py
 Output:
     ./renders/panel_XX.png
+Environment knobs:
+    RESX/RESY     - output resolution (default 1280x720)
+    BG            - world hex color (default #1e2230)
+    WORLD_INT     - world intensity (default 1.0)
+    SAFE          - safe-frame fraction (default 0.9)
+    TAILS         - 1/0 to enable/disable bubble tails (default 1)
 """
 
+import glob
+import math
 import os
-from math import radians
-from pathlib import Path
+import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Euler, Vector
 
-# ----------------------------- Helpers -----------------------------
+# --------------------------- Env helpers ---------------------------
 
-def factory_reset():
+def env_str(name, default):
+    v = os.environ.get(name)
+    return v if v not in (None, "") else default
+
+def env_float(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except Exception:
+        return default
+
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def cwd_base():
+    try:
+        return os.path.abspath(os.getcwd())
+    except Exception:
+        return os.path.abspath(os.path.dirname(sys.argv[0]))
+
+# --------------------------- Render defaults ---------------------------
+
+def set_evee_filmic_defaults():
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    ee = scene.eevee
+    ee.use_soft_shadows = True
+    ee.use_gtao = True
+    ee.use_bloom = True
+    ee.use_ssr = True
+    ee.ssr_thickness = 1.0
+    scene.view_settings.view_transform = "Filmic"
+    scene.view_settings.look = "High Contrast"
+    scene.view_settings.exposure = 0.0
+    scene.display_settings.display_device = "sRGB"
+    scene.use_nodes = False  # disable compositor
+
+def clean_factory_reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    set_evee_filmic_defaults()
 
-def first_view_layer(scene: bpy.types.Scene):
-    # robustly get the first view layer regardless of name
-    if scene.view_layers:
-        return scene.view_layers[0]
-    # create one if somehow missing
-    bpy.ops.scene.view_layer_add()
-    return scene.view_layers[0]
+# --------------------------- World / Camera / Lights ---------------------------
 
-def ensure_dir(p):
-    os.makedirs(p, exist_ok=True)
-
-# ----------------------------- Render & world -----------------------------
-
-def setup_render(output_dir: str):
-    scn = bpy.context.scene
-    scn.render.engine = "BLENDER_EEVEE"
-    scn.render.resolution_x = 1920
-    scn.render.resolution_y = 1080
-    scn.render.film_transparent = False
-    scn.view_settings.view_transform = "Filmic"
-    scn.view_settings.look = "High Contrast"
-    scn.eevee.use_gtao = True
-    scn.eevee.gtao_distance = 0.2
-    scn.eevee.use_bloom = True
-    scn.eevee.use_ssr = True
-    scn.eevee.use_soft_shadows = True
-    scn.eevee.taa_render_samples = 64
-    scn.render.image_settings.file_format = "PNG"
-    scn.render.filepath = output_dir
-    ensure_dir(output_dir)
-
-def setup_world():
-    world = bpy.data.worlds.new("ToonWorld")
+def set_world(bg_hex="#1e2230", intensity=1.0):
+    hex_str = bg_hex.lstrip("#")
+    if len(hex_str) == 3:
+        hex_str = "".join([c * 2 for c in hex_str])
+    r = int(hex_str[0:2], 16) / 255.0
+    g = int(hex_str[2:4], 16) / 255.0
+    b = int(hex_str[4:6], 16) / 255.0
+    world = bpy.data.worlds.new("World") if not bpy.data.worlds else bpy.data.worlds[0]
+    bpy.context.scene.world = world
     world.use_nodes = True
     nt = world.node_tree
-    bg = nt.nodes.get("Background")
-    if bg:
-        bg.inputs[0].default_value = (0.96, 0.97, 1.0, 1.0)  # soft paper
-        bg.inputs[1].default_value = 1.0
-    bpy.context.scene.world = world
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputWorld")
+    bg = nt.nodes.new("ShaderNodeBackground")
+    bg.inputs["Color"].default_value = (r, g, b, 1.0)
+    bg.inputs["Strength"].default_value = intensity
+    nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
 
-# ----------------------------- Camera & lights -----------------------------
+def make_camera_ortho(name="Camera", ortho_scale=18.0, location=(0, -14, 7), look_at=(0, 0, 1.6)):
+    cam_data = bpy.data.cameras.new(name)
+    cam_obj = bpy.data.objects.new(name, cam_data)
+    bpy.context.collection.objects.link(cam_obj)
+    cam_data.type = "ORTHO"
+    cam_data.ortho_scale = ortho_scale
+    cam_obj.location = Vector(location)
+    direction = Vector(look_at) - cam_obj.location
+    cam_obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    bpy.context.scene.camera = cam_obj
+    return cam_obj
 
-def setup_camera():
-    cam = bpy.data.cameras.new("Cam")
-    cam.lens = 35
-    o = bpy.data.objects.new("Cam", cam)
-    bpy.context.collection.objects.link(o)
-    o.location = (0.0, -7.0, 2.2)
-    o.rotation_euler = (radians(68), 0.0, 0.0)
-    bpy.context.scene.camera = o
-    return o
+def make_area_light(name, energy=1000.0, size=3.0, location=(0, 0, 0), rotation=(0, 0, 0), color=(1, 1, 1)):
+    light_data = bpy.data.lights.new(name=name, type="AREA")
+    light_data.energy = energy
+    light_data.color = color
+    light_data.shape = "SQUARE"
+    light_data.size = size
+    light_obj = bpy.data.objects.new(name, light_data)
+    bpy.context.collection.objects.link(light_obj)
+    light_obj.location = Vector(location)
+    light_obj.rotation_euler = Euler(rotation, "XYZ")
+    return light_obj
 
-def setup_lights():
-    def area(name, loc, rot, power, size=2.6):
-        data = bpy.data.lights.new(name=name, type="AREA")
-        data.energy = power
-        data.size = size
-        obj = bpy.data.objects.new(name, data)
-        bpy.context.collection.objects.link(obj)
-        obj.location = loc
-        obj.rotation_euler = rot
-        return obj
-    area("Key",  (2.8, -3.0, 3.2), (radians(65), 0, radians(-20)), 1400)
-    area("Fill", (-3.5, -1.0, 2.5), (radians(70), 0, radians(25)), 600)
-    area("Rim",  (0.0,  3.0, 3.5),  (radians(110), 0, 0),          900)
+def build_three_point_rig():
+    make_area_light("Key", 2500.0, 4.0, (-4, -6, 6), (math.radians(60), 0, math.radians(-20)))
+    make_area_light("Fill", 900.0, 5.0, (5, -4, 4), (math.radians(55), 0, math.radians(20)))
+    make_area_light("Rim", 1800.0, 3.0, (0, 6, 5), (math.radians(-110), 0, 0), (0.95, 1.0, 1.0))
 
-# ----------------------------- Materials -----------------------------
+# --------------------------- Materials & Characters ---------------------------
 
-def make_toon_mat(name, color=(0.85, 0.88, 0.95, 1), emission=0.0, rough=0.1, size=0.25, smooth=0.05):
+def make_toon_material(name="Toon", hue=0.6, sat=0.7, val=0.9, size=0.25, smooth=0.05):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
-    for n in list(nt.nodes):
-        nt.nodes.remove(n)
+    nt.nodes.clear()
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     mix = nt.nodes.new("ShaderNodeMixShader")
     toon = nt.nodes.new("ShaderNodeBsdfToon")
-    toon.inputs["Color"].default_value = color
+    diff = nt.nodes.new("ShaderNodeBsdfDiffuse")
+    hsv = nt.nodes.new("ShaderNodeHueSaturation")
+    hsv.inputs["Hue"].default_value = hue
+    hsv.inputs["Saturation"].default_value = sat
+    hsv.inputs["Value"].default_value = val
     toon.inputs["Size"].default_value = size
     toon.inputs["Smooth"].default_value = smooth
-    diff = nt.nodes.new("ShaderNodeBsdfDiffuse")
-    diff.inputs["Roughness"].default_value = rough
-    diff.inputs["Color"].default_value = color
-    emis = nt.nodes.new("ShaderNodeEmission")
-    emis.inputs["Color"].default_value = color
-    emis.inputs["Strength"].default_value = emission
-    add = nt.nodes.new("ShaderNodeAddShader")
-    nt.links.new(toon.outputs[0], mix.inputs[1])
-    nt.links.new(diff.outputs[0], mix.inputs[2])
-    mix.inputs[0].default_value = 0.35
-    nt.links.new(mix.outputs[0], add.inputs[0])
-    nt.links.new(emis.outputs[0], add.inputs[1])
-    nt.links.new(add.outputs[0], out.inputs[0])
+    nt.links.new(hsv.outputs["Color"], toon.inputs["Color"])
+    nt.links.new(hsv.outputs["Color"], diff.inputs["Color"])
+    nt.links.new(toon.outputs["BSDF"], mix.inputs[1])
+    nt.links.new(diff.outputs["BSDF"], mix.inputs[2])
+    mix.inputs["Fac"].default_value = 0.35
+    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
     return mat
 
-def get_or_create(name, build_fn):
-    mat = bpy.data.materials.get(name)
+def make_capsule(name, height=3.0, radius=0.55, location=(0, 0, 0), mat=None):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=radius, depth=max(height - 2 * radius, 0.001), location=location)
+    cyl = bpy.context.active_object
+    cyl.name = name + "_Body"
+    top_loc = (location[0], location[1], location[2] + height / 2 - radius)
+    bot_loc = (location[0], location[1], location[2] - height / 2 + radius)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=radius, location=top_loc)
+    top = bpy.context.active_object
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=radius, location=bot_loc)
+    bot = bpy.context.active_object
+    for o in [top, bot]:
+        o.select_set(True)
+    cyl.select_set(True)
+    bpy.context.view_layer.objects.active = cyl
+    bpy.ops.object.join()
+    obj = bpy.context.active_object
+    obj.name = name
     if mat:
-        return mat
-    return build_fn()
-
-# ----------------------------- Freestyle (outlines) -----------------------------
-
-def setup_freestyle():
-    scn = bpy.context.scene
-    vl = first_view_layer(scn)
-    vl.use_freestyle = True
-    fs = vl.freestyle_settings
-    for ls in list(fs.linesets):
-        fs.linesets.remove(ls)
-    style = bpy.data.linestyles.get("ToonLines")
-    if not style:
-        style = bpy.data.linestyles.new("ToonLines")
-    style.thickness = 1.5
-    style.color = (0, 0, 0)
-    style.use_chaining = True
-    style.chaining = 'PLAIN'
-    lset = fs.linesets.new("ToonLineSet")
-    lset.linestyle = style
-    lset.select_by_visibility = True
-    lset.select_silhouette = True
-    lset.select_border = True
-    lset.select_crease = True
-
-# ----------------------------- Characters -----------------------------
-
-def make_robot():
-    parts = []
-
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.6, location=(0, 0, 1.7))
-    head = bpy.context.active_object
-    parts.append(head)
-
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.65, depth=1.2, location=(0, 0, 0.9))
-    torso = bpy.context.active_object
-    parts.append(torso)
-
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=1.0, location=(-0.35, 0, 0.15))
-    leg_l = bpy.context.active_object
-    parts.append(leg_l)
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=1.0, location=(0.35, 0, 0.15))
-    leg_r = bpy.context.active_object
-    parts.append(leg_r)
-
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.18, depth=0.8, location=(-0.75, 0, 1.2))
-    arm_l = bpy.context.active_object
-    parts.append(arm_l)
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.18, depth=0.8, location=(0.75, 0, 1.2))
-    arm_r = bpy.context.active_object
-    parts.append(arm_r)
-
-    bot = bpy.data.objects.new("Robot", None)
-    bpy.context.collection.objects.link(bot)
-    for p in parts:
-        p.parent = bot
-
-    steel = get_or_create("ToonSteel", lambda: make_toon_mat("ToonSteel", (0.65, 0.7, 0.75, 1), emission=0.0))
-    visor = get_or_create("ToonVisor", lambda: make_toon_mat("ToonVisor", (0.1, 0.4, 1.0, 1), emission=0.4))
-    for p in [head, torso, leg_l, leg_r, arm_l, arm_r]:
-        p.data.materials.clear()
-        p.data.materials.append(steel)
-
-    bpy.ops.mesh.primitive_cube_add(size=0.5, location=(0, 0.55, 1.8))
-    v = bpy.context.active_object
-    v.scale = (0.6, 0.05, 0.18)
-    v.data.materials.append(visor)
-    v.parent = bot
-
-    bot.location = (-0.8, 0, 0)
-    bot.rotation_euler = (0, 0, radians(10))
-    return bot
-
-def make_cop():
-    parts = []
-    bpy.ops.mesh.primitive_cube_add(size=1.2, location=(0, 0, 1.0))
-    body = bpy.context.active_object
-    parts.append(body)
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.5, location=(0, 0, 1.8))
-    head = bpy.context.active_object
-    parts.append(head)
-    bpy.ops.mesh.primitive_cone_add(radius1=0.7, depth=0.25, location=(0, 0, 2.25))
-    hat = bpy.context.active_object
-    parts.append(hat)
-    char = bpy.data.objects.new("Cop", None)
-    bpy.context.collection.objects.link(char)
-    for p in parts:
-        p.parent = char
-
-    blue = get_or_create("ToonBlue", lambda: make_toon_mat("ToonBlue", (0.1, 0.2, 0.7, 1)))
-    skin = get_or_create("ToonSkin", lambda: make_toon_mat("ToonSkin", (1.0, 0.83, 0.7, 1)))
-    hatm = get_or_create("ToonHat", lambda: make_toon_mat("ToonHat", (0.05, 0.05, 0.05, 1)))
-    body.data.materials.clear()
-    body.data.materials.append(blue)
-    head.data.materials.clear()
-    head.data.materials.append(skin)
-    hat.data.materials.clear()
-    hat.data.materials.append(hatm)
-
-    char.location = (1.1, 0, 0)
-    char.rotation_euler = (0, 0, radians(-8))
-    return char
-
-# ----------------------------- Speech bubbles -----------------------------
-
-def make_rounded_rect(name="BubbleRect", size=(3.2, 1.6), radius=0.25, loc=(0, 0, 0.0)):
-    w, h = size
-    r = min(radius, min(w, h) / 2 - 1e-3)
-    bpy.ops.mesh.primitive_plane_add(size=1.0, location=loc)
-    rect = bpy.context.active_object
-    rect.name = name
-    rect.scale = (w / 2, h / 2, 1)
-    bpy.ops.object.modifier_add(type='BEVEL')
-    rect.modifiers["Bevel"].width = r
-    rect.modifiers["Bevel"].segments = 8
-    rect.modifiers["Bevel"].affect = 'EDGES'
-    bpy.ops.object.shade_smooth()
-    return rect
-
-def add_tail(parent_obj, side=1):
-    bpy.ops.mesh.primitive_cone_add(radius1=0.18, depth=0.35, location=(0, 0, 0))
-    tri = bpy.context.active_object
-    tri.rotation_euler = (radians(90), 0, radians(90 if side > 0 else -90))
-    tri.location = (parent_obj.location.x + (parent_obj.scale.x + 0.2) * side,
-                    parent_obj.location.y, parent_obj.location.z - parent_obj.scale.y * 0.6)
-    tri.parent = parent_obj
-    return tri
-
-def make_text_obj(body, size=0.28, wrap_width=24):
-    words = body.split()
-    lines = []
-    cur = ""
-    for w in words:
-        if len(cur) + len(w) + 1 > wrap_width:
-            lines.append(cur.strip())
-            cur = w
+        if obj.data.materials:
+            obj.data.materials[0] = mat
         else:
-            cur = (cur + " " + w).strip()
-    if cur:
-        lines.append(cur)
-    txt_data = bpy.data.curves.new(type="FONT", name="BubbleTextCurve")
-    txt = bpy.data.objects.new("BubbleText", txt_data)
-    bpy.context.collection.objects.link(txt)
-    txt.data.align_x = "CENTER"
+            obj.data.materials.append(mat)
+    return obj
+
+def enable_freestyle(thickness_px=1.5):
+    scn = bpy.context.scene
+    scn.render.use_freestyle = True
+    vl = bpy.context.view_layer
+    fs = vl.freestyle_settings
+    fs.use_smoothness = True
+    fs.linesets.clear()
+    line_set = fs.linesets.new("LineSet")
+    styles = bpy.data.linestyles
+    style = styles["ToonStyle"] if "ToonStyle" in styles else styles.new("ToonStyle")
+    style.color = (0, 0, 0)
+    style.thickness = thickness_px
+    line_set.linestyle = style
+    line_set.select_silhouette = True
+    line_set.select_border = True
+    line_set.select_crease = True
+    scn.view_layers.update()
+
+def make_text(name, text, size=0.6, location=(0, 0, 0), alignment="CENTER"):
+    bpy.ops.object.text_add(location=location)
+    txt = bpy.context.active_object
+    txt.name = name
+    txt.data.body = text
+    txt.data.align_x = alignment
     txt.data.align_y = "CENTER"
+    txt.data.extrude = 0.0
+    txt.data.space_line = 1.0
     txt.data.size = size
-    txt.location = (0, 0, 0)
-    txt.data.body = "\n".join(lines)
+    txt.rotation_euler = Euler((math.radians(90), 0, math.radians(180)), "XYZ")
     return txt
 
-def make_speech_bubble(text, loc=(0, 0, 2.9), side=1):
-    rect = make_rounded_rect(size=(3.2, 1.6), radius=0.25, loc=loc)
-    white = get_or_create("ToonWhite", lambda: make_toon_mat("ToonWhite", (1, 1, 1, 1), rough=0.0))
-    rect.data.materials.clear()
-    rect.data.materials.append(white)
+# --------------------------- Bubble system ---------------------------
 
-    tail = add_tail(rect, side=side)
-    tail.data.materials.clear()
-    tail.data.materials.append(white)
+def new_backplate(size=(10, 4), color=(1, 1, 1, 1)):
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 0))
+    pl = bpy.context.active_object
+    sx, sy = size
+    pl.scale = (sx / 2, sy / 2, 1)
+    bpy.ops.object.modifier_add(type="BEVEL")
+    pl.modifiers["Bevel"].segments = 3
+    pl.modifiers["Bevel"].width = 0.15
+    mat = bpy.data.materials.new("BubbleMat")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Base Color"].default_value = color
+    bsdf.inputs["Roughness"].default_value = 0.9
+    bsdf.inputs["Specular"].default_value = 0.0
+    nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
+    pl.data.materials.append(mat)
+    return pl
 
-    txt = make_text_obj(text)
-    txt.location = rect.location.copy()
-    txt.location.z += 0.02
-    txt.parent = rect
-    tmat = get_or_create("TextBlack", lambda: make_toon_mat("TextBlack", (0, 0, 0, 1)))
-    txt.data.materials.clear()
-    txt.data.materials.append(tmat)
+def new_tail(name="Tail", length=1.2, width=0.5):
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    import bmesh
 
-    grp = bpy.data.objects.new("Bubble", None)
-    bpy.context.collection.objects.link(grp)
-    rect.parent = grp
-    tail.parent = grp
-    grp.location = (0, 0, 0)
-    return grp
+    bm = bmesh.new()
+    v0 = bm.verts.new((0, 0, 0))
+    v1 = bm.verts.new((length, width / 2, 0))
+    v2 = bm.verts.new((length, -width / 2, 0))
+    bm.faces.new((v0, v1, v2))
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
 
-def clear_old_bubbles():
-    for o in [o for o in bpy.context.scene.objects if o.name.startswith(("Bubble", "BubbleText", "BubbleRect"))]:
-        bpy.data.objects.remove(o, do_unlink=True)
+def make_bubble(name, text_size=0.55, with_tail=True):
+    grp = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(grp)
+    txt = make_text(name + "_Text", "", size=text_size, location=(0, 0, 0))
+    plate = new_backplate()
+    txt.parent = plate
+    tail = None
+    if with_tail:
+        tail = new_tail(name + "_Tail")
+        tail.parent = plate
+    return {"group": grp, "plate": plate, "text": txt, "tail": tail, "active": True}
 
-# ----------------------------- Titles -----------------------------
+def approx_text_box(obj, char_w=0.45, char_h=0.8, padding=(0.8, 0.6)):
+    lines = obj.data.body.splitlines() or [""]
+    width = max(len(l) for l in lines) * char_w + padding[0]
+    height = len(lines) * char_h + padding[1]
+    return width, height
 
-def ensure_title_obj():
-    if "PanelTitle" in bpy.data.objects:
-        return bpy.data.objects["PanelTitle"]
-    curv = bpy.data.curves.new(type="FONT", name="PanelTitleCurve")
-    o = bpy.data.objects.new("PanelTitle", curv)
-    bpy.context.collection.objects.link(o)
-    o.data.align_x = "CENTER"
-    o.data.align_y = "TOP_BASELINE"
-    o.data.size = 0.35
-    o.location = (0, 0, 3.8)
-    o.data.body = ""
-    mat = get_or_create("TextBlack", lambda: make_toon_mat("TextBlack", (0, 0, 0, 1)))
-    o.data.materials.append(mat)
-    return o
+def place_bubble(bub, center: Vector, text_body: str, clamp_rect, target=None, side="C", tail_on=True):
+    bub["text"].data.body = text_body
+    w, h = approx_text_box(bub["text"])
+    plate = bub["plate"]
+    plate.scale = (max(3.2, w / 2), max(1.4, h / 2), 1)
+    pos = Vector(center)
+    minx, maxx, minz, maxz = clamp_rect
+    pos.x = max(minx, min(maxx, pos.x))
+    pos.z = max(minz, min(maxz, pos.z))
+    plate.location = (pos.x, -0.05, pos.z)
+    if bub.get("tail") and tail_on and target is not None:
+        tail = bub["tail"]
+        sx = plate.scale.x
+        edge_local = Vector((-sx if side == "L" else (sx if side == "R" else 0), 0, 0))
+        world_edge = plate.matrix_world @ Vector((edge_local.x, edge_local.y, 0))
+        vec = Vector((target.x - world_edge.x, 0, target.z - world_edge.z))
+        angle = math.atan2(vec.z, vec.x)
+        tail.location = edge_local
+        tail.rotation_euler = Euler((0, 0, angle), "XYZ")
+        dist = max(0.5, min(2.5, vec.length))
+        tail.scale = (dist, 1.0, 1.0)
+    elif bub.get("tail"):
+        bub["tail"].location = (0, 0, -1000)
 
-# ----------------------------- Ground & shots -----------------------------
-
-def place_ground():
-    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, 0))
-    p = bpy.context.active_object
-    p.name = "Ground"
-    p.data.materials.append(get_or_create("ToonGround", lambda: make_toon_mat("ToonGround", (0.95, 0.96, 1.0, 1))))
-    return p
-
-def set_shot(cam, kind="two_shot"):
-    if kind == "close_robot":
-        cam.location = (-0.8, -4.5, 1.6)
-        cam.rotation_euler = (radians(68), 0, radians(8))
-    elif kind == "close_cop":
-        cam.location = (1.2, -4.5, 1.6)
-        cam.rotation_euler = (radians(68), 0, radians(-8))
-    elif kind == "wide":
-        cam.location = (0.0, -8.5, 2.6)
-        cam.rotation_euler = (radians(70), 0, 0)
-    else:
-        cam.location = (0.0, -7.0, 2.2)
-        cam.rotation_euler = (radians(68), 0, 0)
-
-def layout_bubbles(lines):
-    clear_old_bubbles()
-    spots = [
-        (Vector((-2.8, 0, 3.0)), 1),
-        (Vector((2.8, 0, 3.0)), -1),
-        (Vector((-2.6, 0, 1.0)), 1),
-        (Vector((2.6, 0, 1.0)), -1),
-    ]
-    for i, text in enumerate(lines[:4]):
-        loc, side = spots[i]
-        make_speech_bubble(text, loc=tuple(loc), side=side)
-
-# ----------------------------- Panels -----------------------------
-
-DEFAULT_PANELS = [
-    {
-        "title": "TITLE - TERMINATOR T-2045: BLOCKCHAIN MELTDOWN",
-        "lines": [
-            "Cyber-comedy / sci-fi stupidity",
-            "Use TERMINATOR T-2045",
-            "BLOCKCHAIN MELTDOWN",
-            "CYBER-COMEDY / SCI-FI STUPIDITY",
-        ],
-    },
-    {
-        "title": "PAGE 1 - A BAD DECISION IN 2018",
-        "lines": [
-            "Launch him at the sun!",
-            "That'll show those aliens! *SLAP*",
-            "Sir... that's wrong direction.",
-            "THIS IS NOT OPTIMAL TRAJECTORYYYYY-",
-        ],
-    },
-    {
-        "title": "PAGE 2 - THE SUN ACCIDENTALLY POWERS HIM UP",
-        "lines": [
-            "The robot slingshots around the sun like a CGI spaghetti noodle.",
-            "Power at 900%.",
-            "I am now hotter than influencer drama.",
-            "Power at 9000%.",
-        ],
-    },
-    {
-        "title": "PAGE 3 - CRASH-LANDING DURING PANDEMIC",
-        "lines": [
-            "Year: 2020. Location: Empty supermarket parking lot.",
-            "Scanning Earth status... ERROR: planet infected with... corona shit?",
-            "Bro, social distance!! Six meters! AT LEAST!",
-        ],
-    },
-]
-
-def load_panels_from_directory(base_dir: Path):
-    scripts_dir = base_dir / "scripts"
-    if not scripts_dir.exists():
-        return None
-    files = sorted(p for p in scripts_dir.glob("*.txt") if p.is_file())
-    if not files:
-        return None
-    panels = []
-    for f in files:
-        rows = f.read_text(encoding="utf-8").splitlines()
-        if not rows:
+def toggle_bubble(bub, show=True):
+    objs = [bub.get("plate"), bub.get("text"), bub.get("tail")]
+    for obj in objs:
+        if not obj:
             continue
-        title = rows[0].strip()
-        lines = [r.strip() for r in rows[1:] if r.strip()]
-        panels.append({"title": title, "lines": lines})
-    return panels or None
+        obj.hide_viewport = not show
+        obj.hide_render = not show
+    bub["active"] = show
 
-# ----------------------------- Build & Render -----------------------------
+# --------------------------- Camera safe area ---------------------------
 
-def build_scene():
-    factory_reset()
-    setup_world()
-    cam = setup_camera()
-    setup_lights()
-    place_ground()
-    make_robot()
-    make_cop()
-    setup_freestyle()
-    return cam
+def camera_safe_rect(cam_obj, resx, resy, safe=0.9):
+    scale_w = cam_obj.data.ortho_scale
+    aspect = resy / resx
+    half_w = scale_w / 2.0
+    half_h = (scale_w * aspect) / 2.0
+    half_w *= safe
+    half_h *= safe
+    return (-half_w, half_w, 0.5, 0.5 + 2 * half_h)
 
-def render_panels(panels, output_dir, cam):
-    title_obj = ensure_title_obj()
-    for i, panel in enumerate(panels, start=1):
-        shot = ("two_shot", "wide", "close_robot", "close_cop")[i % 4]
-        set_shot(cam, shot)
-        title_obj.data.body = panel.get("title", "")[:80]
-        layout_bubbles(panel.get("lines", []))
-        panel_path = os.path.join(output_dir, f"panel_{i:02d}.png")
-        bpy.context.scene.render.filepath = panel_path
-        bpy.ops.render.render(write_still=True)
-        print(f"Rendered {panel_path}")
+# --------------------------- Panel parsing ---------------------------
+
+def discover_script_files(scripts_dir):
+    return sorted(glob.glob(os.path.join(scripts_dir, "*.txt")))
+
+def parse_panel_file(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        lines = [ln.rstrip() for ln in handle.readlines() if ln.strip() != ""]
+    title = lines[0] if lines else "Untitled"
+    body_lines = lines[1:] if len(lines) > 1 else []
+    return title, body_lines
+
+def builtin_story():
+    return [
+        (
+            "TERMINATOR T-2045 — BLOCKCHAIN MELTDOWN (Cover)",
+            ["CAPTION: When ledgers go sentient, only one node can roll back time."],
+        ),
+        (
+            "Page 1: A New Fork",
+            ["L: Consensus achieved. Humanity… not so much.", "NARRATOR: Night falls over Silicon Wasteland."],
+        ),
+        (
+            "Page 2: Gas Fees",
+            ["R: Deploying patch…", "L: Denied. Immutable.", "CAPTION: *hashrate screams*"],
+        ),
+        (
+            "Page 3: Cold Storage",
+            ["NARRATOR: In the ruins, two wallets meet.", "R: You with me?", "L: I am inevitable."],
+        ),
+    ]
+
+def load_panels_from_folder(scripts_dir):
+    files = discover_script_files(scripts_dir)
+    if not files:
+        return builtin_story()
+    panels = []
+    for file_path in files:
+        title, body_lines = parse_panel_file(file_path)
+        panels.append((title, body_lines))
+    return panels
+
+# --------------------------- Stage setup ---------------------------
+
+def build_stage():
+    clean_factory_reset()
+    set_world(bg_hex=env_str("BG", "#1e2230"), intensity=env_float("WORLD_INT", 1.0))
+    cam = make_camera_ortho(ortho_scale=18.0, location=(0, -14, 7), look_at=(0, 0, 1.6))
+    build_three_point_rig()
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, -0.001))
+    bpy.context.active_object.name = "Ground"
+    left = make_capsule("Hero_T2045", 3.2, 0.6, (-2.5, 0, 1.6), make_toon_material("ToonBlue", 0.6, 0.6, 0.9))
+    right = make_capsule("Hacker", 3.0, 0.55, (2.5, 0, 1.5), make_toon_material("ToonRed", 0.0, 0.7, 0.95))
+    title = make_text("PanelTitle", "TITLE", size=0.7, location=(0, 0.0, 6.2))
+    enable_freestyle(1.5)
+    tails_enabled = int(env_float("TAILS", 1)) != 0
+    pool = [make_bubble(f"Bubble_{i:02d}", text_size=0.55, with_tail=tails_enabled) for i in range(1, 7)]
+    return {"camera": cam, "left": left, "right": right, "title": title, "bubbles": pool}
+
+# --------------------------- Layout & Render ---------------------------
+
+def actor_heads(stage):
+    left = stage["left"].location.copy()
+    right = stage["right"].location.copy()
+    left.z += 1.2
+    right.z += 1.1
+    return left, right
+
+def layout_panel(stage, title_txt: str, lines, resx, resy):
+    cam = stage["camera"]
+    safe = float(env_float("SAFE", 0.9))
+    minx, maxx, minz, maxz = camera_safe_rect(cam, resx, resy, safe=safe)
+    title = stage["title"]
+    title.data.body = title_txt
+    title.location = Vector((0, 0.0, maxz - 0.4))
+    left_head, right_head = actor_heads(stage)
+    items = []
+    for raw in lines:
+        text = raw.strip()
+        lower = text.lower()
+        if lower.startswith("l:"):
+            items.append(("L", text[2:].strip()))
+        elif lower.startswith("r:"):
+            items.append(("R", text[2:].strip()))
+        elif lower.startswith("narrator:") or lower.startswith("caption:"):
+            items.append(("C", text.split(":", 1)[1].strip()))
+        else:
+            items.append(("C", text))
+    if not items:
+        items = [("C", "")]
+    y_top = maxz - 1.2
+    y_left = maxz - 2.2
+    y_right = maxz - 2.2
+    col_left = (minx + (minx + maxx) / 2) * 0.5
+    col_right = (maxx + (minx + maxx) / 2) * 0.5
+    center_x = 0.0
+    for bubble in stage["bubbles"]:
+        toggle_bubble(bubble, False)
+    idx = 0
+    for role, text in items:
+        if idx >= len(stage["bubbles"]):
+            break
+        bubble = stage["bubbles"][idx]
+        toggle_bubble(bubble, True)
+        if role == "C":
+            pos = Vector((center_x, 0, y_top))
+            y_top -= 1.6
+            place_bubble(bubble, pos, text, (minx, maxx, minz, maxz), target=None, side="C", tail_on=False)
+        elif role == "L":
+            pos = Vector((col_left, 0, y_left))
+            y_left -= 1.8
+            place_bubble(bubble, pos, text, (minx, maxx, minz, maxz), target=left_head, side="L", tail_on=True)
+        elif role == "R":
+            pos = Vector((col_right, 0, y_right))
+            y_right -= 1.8
+            place_bubble(bubble, pos, text, (minx, maxx, minz, maxz), target=right_head, side="R", tail_on=True)
+        idx += 1
+
+def set_render_output(base_dir, filename, resx=1280, resy=720):
+    scene = bpy.context.scene
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.filepath = os.path.join(base_dir, filename)
+    scene.render.resolution_x = int(resx)
+    scene.render.resolution_y = int(resy)
+    scene.render.resolution_percentage = 100
+
+def render_panels(stage, panels, out_dir, resx=1280, resy=720):
+    ensure_dir(out_dir)
+    for idx, (title, body_lines) in enumerate(panels, start=1):
+        layout_panel(stage, title, body_lines, resx, resy)
+        fname = f"panel_{idx:02d}.png"
+        set_render_output(out_dir, fname, resx=resx, resy=resy)
+        bpy.ops.render.render(write_still=True, use_viewport=False)
+        print(f"[OK] Rendered {os.path.join(out_dir, fname)}")
+
+# --------------------------- Main ---------------------------
 
 def main():
-    cam = build_scene()
-    base_dir = Path(bpy.path.abspath("//"))
-    output_dir = os.path.join(base_dir, "renders")
-    panels = load_panels_from_directory(base_dir) or DEFAULT_PANELS
-    setup_render(output_dir)
-    render_panels(panels, output_dir, cam)
+    base = cwd_base()
+    scripts_dir = os.path.join(base, "scripts")
+    out_dir = os.path.join(base, "renders")
+    resx = int(env_float("RESX", 1280))
+    resy = int(env_float("RESY", 720))
+    panels = load_panels_from_folder(scripts_dir)
+    stage = build_stage()
+    render_panels(stage, panels, out_dir, resx=resx, resy=resy)
 
 if __name__ == "__main__":
     main()
