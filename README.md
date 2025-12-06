@@ -35,3 +35,17 @@ blender -b -P tools/bootstrap_t2045_project.py
 ```
 
 Each scene receives Characters/Environment/Props/FX/Lights/Audio collections, a shot-note text block, three placeholder cameras bound to markers, and toon-friendly Eevee defaults (AO, Bloom, SSR, Filmic grade). Edit within the generated `.blend` to drop in assets, animate, and render per scene.
+
+### Batch-render every scene in a `.blend`
+
+After you populate and animate the generated scenes, you can render them all in one pass using the helper below. Each scene is rendered to its own folder under `./renders/<SceneName>/` by default.
+
+```bash
+# Render all scenes in the current .blend
+blender -b your_project.blend -P tools/batch_render_scenes.py
+
+# Override output and resolution (optional)
+OUT=/abs/path/renders RESX=1920 RESY=1080 blender -b your_project.blend -P tools/batch_render_scenes.py
+```
+
+The script enforces consistent Eevee settings (Filmic, AO, Bloom, SSR, soft shadows) before rendering each scene's frame range.
