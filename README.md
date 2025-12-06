@@ -111,6 +111,25 @@ What it does:
 - Optionally drops VSE sound strips for waveform reference
 - Bakes amplitude to the `JawOpen` shapekey on the first mesh in the scene for previs mouth flaps (change `JAW_KEY` to match your rig)
 
+### Import your own assets into each scene
+
+Place your character/prop files under an assets folder and run the importer to drop them into the matching scene collections. By default it looks for per-scene subfolders (e.g., `assets/S01_Launch_At_Sun/`) and links everything into an `Imported` collection inside each scene.
+
+Supported formats: `.blend`, `.fbx`, `.obj`, `.glb`, `.gltf`
+
+```bash
+# Per-scene subfolders (default)
+ASSET_ROOT=/abs/path/assets blender -b your_project.blend -P tools/import_t2045_assets.py
+
+# Put all files in one folder and import into every scene
+ASSET_ROOT=/abs/path/assets PER_SCENE=0 blender -b your_project.blend -P tools/import_t2045_assets.py
+
+# Append .blend objects instead of linking and include MASTER
+ASSET_ROOT=/abs/path/assets LINK_BLEND=0 SKIP_MASTER=0 blender -b your_project.blend -P tools/import_t2045_assets.py
+```
+
+Each run reports how many files and objects were added per scene. Use this after running the bootstrapper to replace placeholders with your real stylized assets.
+
 ### Manual toon `.blend` setup checklist (Eevee)
 
 If you prefer to hand-build a toon-style `.blend` instead of relying on the scripts, use this quick recipe:
