@@ -36,16 +36,39 @@ blender -b -P tools/bootstrap_t2045_project.py
 
 Each scene receives Characters/Environment/Props/FX/Lights/Audio collections, a shot-note text block, three placeholder cameras bound to markers, and toon-friendly Eevee defaults (AO, Bloom, SSR, Filmic grade). Edit within the generated `.blend` to drop in assets, animate, and render per scene.
 
-### Batch-render every scene in a `.blend`
+### Quickly make scenes visible (avoid black renders)
 
-After you populate and animate the generated scenes, you can render them all in one pass using the helper below. Each scene is rendered to its own folder under `./renders/<SceneName>/` by default.
+The bootstrapper creates empty, unlit scenes on purpose. If you need fast non-black preview renders before adding assets, run the sanity helper to inject a bright world BG, a key area light, a ground plane, a placeholder cube (when empty), and a camera if missing:
 
 ```bash
-# Render all scenes in the current .blend
-blender -b your_project.blend -P tools/batch_render_scenes.py
-
-# Override output and resolution (optional)
-OUT=/abs/path/renders RESX=1920 RESY=1080 blender -b your_project.blend -P tools/batch_render_scenes.py
+blender -b your_project.blend -P tools/scene_sanity.py
 ```
 
-The script enforces consistent Eevee settings (Filmic, AO, Bloom, SSR, soft shadows) before rendering each scene's frame range.
+### Batch-render every scene in a `.blend`
+
+After you populate and animate the generated scenes, you can render them all in one pass. Each scene is rendered to its own folder under `./renders/<SceneName>/` by default. The renderer auto-picks/creates a camera per scene and skips the `MASTER` scene unless you disable it via `SKIP_MASTER=0`.
+
+```bash
+# Render all scenes to PNG sequences
+blender -b your_project.blend -P tools/batch_render_scenes.py
+
+# Override output, resolution, or include MASTER
+OUT=/abs/path/renders RESX=1920 RESY=1080 SKIP_MASTER=0 \
+  blender -b your_project.blend -P tools/batch_render_scenes.py
+```
+
+### Render MP4s per scene (H.264)
+
+If you prefer final MP4s instead of PNG sequences, use the FFmpeg helper. It sets consistent Eevee defaults, assigns a camera per scene, and writes `<SceneName>.mp4` into per-scene folders.
+
+```bash
+# CRF mode (quality): lower CRF = better quality, larger files
+OUT=/abs/path/renders CRF=18 PRESET=MEDIUM \
+  blender -b your_project.blend -P tools/batch_render_scenes_mp4.py
+
+# Bitrate mode (kbps): use when CRF is unset
+OUT=/abs/path/renders VBR=12000 GOP=24 PRESET=FAST \
+  blender -b your_project.blend -P tools/batch_render_scenes_mp4.py
+```
+
+Both batch renderers enforce Eevee/Filmic (AO, Bloom, SSR, soft shadows) before rendering each scene's frame range.
