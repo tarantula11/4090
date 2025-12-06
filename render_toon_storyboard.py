@@ -45,6 +45,13 @@ def setup_render(output_dir: str):
     scn.render.resolution_x = 1920
     scn.render.resolution_y = 1080
     scn.render.film_transparent = False
+    scn.view_settings.view_transform = "Filmic"
+    scn.view_settings.look = "High Contrast"
+    scn.eevee.use_gtao = True
+    scn.eevee.gtao_distance = 0.2
+    scn.eevee.use_bloom = True
+    scn.eevee.use_ssr = True
+    scn.eevee.use_soft_shadows = True
     scn.eevee.taa_render_samples = 64
     scn.render.image_settings.file_format = "PNG"
     scn.render.filepath = output_dir
@@ -133,7 +140,7 @@ def setup_freestyle():
     style = bpy.data.linestyles.get("ToonLines")
     if not style:
         style = bpy.data.linestyles.new("ToonLines")
-    style.thickness = 2.0
+    style.thickness = 1.5
     style.color = (0, 0, 0)
     style.use_chaining = True
     style.chaining = 'PLAIN'

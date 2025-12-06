@@ -110,3 +110,15 @@ What it does:
 - Adds 3D Speakers for each `.wav` in the scene folder
 - Optionally drops VSE sound strips for waveform reference
 - Bakes amplitude to the `JawOpen` shapekey on the first mesh in the scene for previs mouth flaps (change `JAW_KEY` to match your rig)
+
+### Manual toon `.blend` setup checklist (Eevee)
+
+If you prefer to hand-build a toon-style `.blend` instead of relying on the scripts, use this quick recipe:
+
+1. **Switch to Eevee**: Render Properties → Render Engine → Eevee. Enable Ambient Occlusion, Bloom, Screen Space Reflections, and Soft Shadows. In Color Management set **Filmic** + **High Contrast**.
+2. **Toon shaders**: In the Shader Editor, use Toon BSDF (or mix Toon + Diffuse for softer ramps). Start with Size ≈ 0.25 and Smooth ≈ 0.05.
+3. **Freestyle outlines**: Enable Freestyle in Render Properties. In View Layer Properties create a line set: black color, thickness around 1.5 px, include Silhouette/Border/Crease.
+4. **3-point lighting**: Add key/fill/rim Area lights (key strongest, fill softer, rim behind). Keep shadows enabled and feel free to tint for mood.
+5. **Cameras**: Add a camera with a Track To constraint targeting an empty near your character for stable framing. Animate camera moves (dolly/orbit/zoom) as needed.
+6. **Characters & FX**: Use stylized meshes or downloaded toon assets; add shape keys or Grease Pencil strokes for expressions. For speech, place text objects or draw Grease Pencil bubbles.
+7. **Rendering**: Set output to PNG for sequences or FFmpeg → MPEG4 → H.264 for MP4. Use F12 for stills, Ctrl+F12 for animation. Save your project as `your_toon_project.blend` once the scene scaffolding is ready.
