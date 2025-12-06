@@ -25,8 +25,9 @@ def setup_render(output_dir: str):
     scn.render.resolution_y = 1080
     scn.render.film_transparent = False
     scn.eevee.taa_render_samples = 32
-    scn.view_layers["View Layer"].use_freestyle = True
-    fl = scn.view_layers["View Layer"].freestyle_settings
+    view_layer = scn.view_layers[0]
+    view_layer.use_freestyle = True
+    fl = view_layer.freestyle_settings
     fl.as_render_pass = False
     fl.linesets.new("Outlines")
     ls = fl.linesets["Outlines"]
