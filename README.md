@@ -1,7 +1,7 @@
 # 4090
 
 ## Blender toon storyboard renderer
-Use `render_toon_storyboard.py` to build toon-style storyboard frames for **TERMINATOR T-2045: BLOCKCHAIN MELTDOWN**. The script constructs the entire scene from scratch (factory reset, world/camera, toon lights, toon materials, characters, speech bubbles, and Freestyle outlines) so no `.blend` starter file is required.
+Use `render_toon_storyboard.py` to build toon-style storyboard frames for **TERMINATOR T-2045: BLOCKCHAIN MELTDOWN**. The script factory-resets Blender, rebuilds the world/camera, drops a 3-point toon light rig, assigns toon materials, spawns two simple characters plus speech bubbles, and enables Freestyle outlines on the first available view layer—so no `.blend` starter file is required.
 
 Run in Blender (headless or GUI):
 ```bash

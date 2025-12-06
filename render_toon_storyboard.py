@@ -1,7 +1,17 @@
 # /render_toon_storyboard.py
 """
-Batch-render toon storyboard panels with characters, speech bubbles, and outlines.
-Run: blender -b -P render_toon_storyboard.py
+Toon Storyboard Renderer for "TERMINATOR T-2045: BLOCKCHAIN MELTDOWN"
+
+- Factory-resets Blender and builds everything (world, camera, toon lights/materials).
+- Adds two simple characters (Robot + Cop), speech bubbles, and Freestyle outlines.
+- Renders text-driven panels from ./scripts/*.txt (falls back to built-in panels).
+- Headless-safe. Works in Blender 3.6+ (Eevee + Freestyle).
+Run:
+    blender -b -P render_toon_storyboard.py
+Quick syntax check without Blender:
+    python -m compileall render_toon_storyboard.py
+Output:
+    ./renders/panel_XX.png
 """
 
 import os
@@ -11,12 +21,23 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
+# ----------------------------- Helpers -----------------------------
 
-# ----------------------------- Core setup -----------------------------
-
-def hard_reset():
+def factory_reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
+def first_view_layer(scene: bpy.types.Scene):
+    # robustly get the first view layer regardless of name
+    if scene.view_layers:
+        return scene.view_layers[0]
+    # create one if somehow missing
+    bpy.ops.scene.view_layer_add()
+    return scene.view_layers[0]
+
+def ensure_dir(p):
+    os.makedirs(p, exist_ok=True)
+
+# ----------------------------- Render & world -----------------------------
 
 def setup_render(output_dir: str):
     scn = bpy.context.scene
@@ -24,32 +45,22 @@ def setup_render(output_dir: str):
     scn.render.resolution_x = 1920
     scn.render.resolution_y = 1080
     scn.render.film_transparent = False
-    scn.eevee.taa_render_samples = 32
-    view_layer = scn.view_layers[0]
-    view_layer.use_freestyle = True
-    fl = view_layer.freestyle_settings
-    fl.as_render_pass = False
-    fl.linesets.new("Outlines")
-    ls = fl.linesets["Outlines"]
-    ls.select_silhouette = True
-    ls.select_border = True
-    ls.select_crease = True
-    fl.thickness_mode = 'ABSOLUTE'
-    fl.thickness = 2.0
+    scn.eevee.taa_render_samples = 64
     scn.render.image_settings.file_format = "PNG"
     scn.render.filepath = output_dir
-    os.makedirs(output_dir, exist_ok=True)
-
+    ensure_dir(output_dir)
 
 def setup_world():
     world = bpy.data.worlds.new("ToonWorld")
     world.use_nodes = True
     nt = world.node_tree
-    bg = nt.nodes["Background"]
-    bg.inputs[0].default_value = (0.97, 0.97, 1.0, 1.0)  # light paper-ish
-    bg.inputs[1].default_value = 1.2
+    bg = nt.nodes.get("Background")
+    if bg:
+        bg.inputs[0].default_value = (0.96, 0.97, 1.0, 1.0)  # soft paper
+        bg.inputs[1].default_value = 1.0
     bpy.context.scene.world = world
 
+# ----------------------------- Camera & lights -----------------------------
 
 def setup_camera():
     cam = bpy.data.cameras.new("Cam")
@@ -61,9 +72,8 @@ def setup_camera():
     bpy.context.scene.camera = o
     return o
 
-
 def setup_lights():
-    def area(name, loc, rot, power, size=2.0):
+    def area(name, loc, rot, power, size=2.6):
         data = bpy.data.lights.new(name=name, type="AREA")
         data.energy = power
         data.size = size
@@ -72,15 +82,13 @@ def setup_lights():
         obj.location = loc
         obj.rotation_euler = rot
         return obj
-
-    area("Key", (2.5, -3.0, 3.0), (radians(65), 0, radians(-20)), 1500)
-    area("Fill", (-3.5, -1.0, 2.2), (radians(70), 0, radians(25)), 700)
-    area("Rim", (0.0, 3.0, 3.5), (radians(110), 0, 0), 1000)
-
+    area("Key",  (2.8, -3.0, 3.2), (radians(65), 0, radians(-20)), 1400)
+    area("Fill", (-3.5, -1.0, 2.5), (radians(70), 0, radians(25)), 600)
+    area("Rim",  (0.0,  3.0, 3.5),  (radians(110), 0, 0),          900)
 
 # ----------------------------- Materials -----------------------------
 
-def make_toon_mat(name, color=(0.8, 0.8, 0.8, 1), emission=0.0, rough=0.1, size=0.25, smooth=0.05):
+def make_toon_mat(name, color=(0.85, 0.88, 0.95, 1), emission=0.0, rough=0.1, size=0.25, smooth=0.05):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -107,18 +115,38 @@ def make_toon_mat(name, color=(0.8, 0.8, 0.8, 1), emission=0.0, rough=0.1, size=
     nt.links.new(add.outputs[0], out.inputs[0])
     return mat
 
-
 def get_or_create(name, build_fn):
     mat = bpy.data.materials.get(name)
     if mat:
         return mat
     return build_fn()
 
+# ----------------------------- Freestyle (outlines) -----------------------------
+
+def setup_freestyle():
+    scn = bpy.context.scene
+    vl = first_view_layer(scn)
+    vl.use_freestyle = True
+    fs = vl.freestyle_settings
+    for ls in list(fs.linesets):
+        fs.linesets.remove(ls)
+    style = bpy.data.linestyles.get("ToonLines")
+    if not style:
+        style = bpy.data.linestyles.new("ToonLines")
+    style.thickness = 2.0
+    style.color = (0, 0, 0)
+    style.use_chaining = True
+    style.chaining = 'PLAIN'
+    lset = fs.linesets.new("ToonLineSet")
+    lset.linestyle = style
+    lset.select_by_visibility = True
+    lset.select_silhouette = True
+    lset.select_border = True
+    lset.select_crease = True
 
 # ----------------------------- Characters -----------------------------
 
 def make_robot():
-    coll = bpy.context.collection
     parts = []
 
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.6, location=(0, 0, 1.7))
@@ -144,7 +172,7 @@ def make_robot():
     parts.append(arm_r)
 
     bot = bpy.data.objects.new("Robot", None)
-    coll.objects.link(bot)
+    bpy.context.collection.objects.link(bot)
     for p in parts:
         p.parent = bot
 
@@ -163,7 +191,6 @@ def make_robot():
     bot.location = (-0.8, 0, 0)
     bot.rotation_euler = (0, 0, radians(10))
     return bot
-
 
 def make_cop():
     parts = []
@@ -195,10 +222,9 @@ def make_cop():
     char.rotation_euler = (0, 0, radians(-8))
     return char
 
-
 # ----------------------------- Speech bubbles -----------------------------
 
-def make_rounded_rect(name="BubbleRect", size=(2.8, 1.3), radius=0.25, loc=(0, 0, 0.0)):
+def make_rounded_rect(name="BubbleRect", size=(3.2, 1.6), radius=0.25, loc=(0, 0, 0.0)):
     w, h = size
     r = min(radius, min(w, h) / 2 - 1e-3)
     bpy.ops.mesh.primitive_plane_add(size=1.0, location=loc)
@@ -212,19 +238,14 @@ def make_rounded_rect(name="BubbleRect", size=(2.8, 1.3), radius=0.25, loc=(0, 0
     bpy.ops.object.shade_smooth()
     return rect
 
-
 def add_tail(parent_obj, side=1):
     bpy.ops.mesh.primitive_cone_add(radius1=0.18, depth=0.35, location=(0, 0, 0))
     tri = bpy.context.active_object
     tri.rotation_euler = (radians(90), 0, radians(90 if side > 0 else -90))
-    tri.location = (
-        parent_obj.location.x + (parent_obj.scale.x + 0.2) * side,
-        parent_obj.location.y,
-        parent_obj.location.z - parent_obj.scale.y * 0.6,
-    )
+    tri.location = (parent_obj.location.x + (parent_obj.scale.x + 0.2) * side,
+                    parent_obj.location.y, parent_obj.location.z - parent_obj.scale.y * 0.6)
     tri.parent = parent_obj
     return tri
-
 
 def make_text_obj(body, size=0.28, wrap_width=24):
     words = body.split()
@@ -248,10 +269,8 @@ def make_text_obj(body, size=0.28, wrap_width=24):
     txt.data.body = "\n".join(lines)
     return txt
 
-
-def make_speech_bubble(text, loc=(0, 0, 2.9), scale=(1, 1, 1), side=1):
+def make_speech_bubble(text, loc=(0, 0, 2.9), side=1):
     rect = make_rounded_rect(size=(3.2, 1.6), radius=0.25, loc=loc)
-    rect.scale = (1.2 * scale[0], 0.8 * scale[1], 1)
     white = get_or_create("ToonWhite", lambda: make_toon_mat("ToonWhite", (1, 1, 1, 1), rough=0.0))
     rect.data.materials.clear()
     rect.data.materials.append(white)
@@ -264,7 +283,6 @@ def make_speech_bubble(text, loc=(0, 0, 2.9), scale=(1, 1, 1), side=1):
     txt.location = rect.location.copy()
     txt.location.z += 0.02
     txt.parent = rect
-
     tmat = get_or_create("TextBlack", lambda: make_toon_mat("TextBlack", (0, 0, 0, 1)))
     txt.data.materials.clear()
     txt.data.materials.append(tmat)
@@ -276,11 +294,9 @@ def make_speech_bubble(text, loc=(0, 0, 2.9), scale=(1, 1, 1), side=1):
     grp.location = (0, 0, 0)
     return grp
 
-
 def clear_old_bubbles():
-    for obj in [o for o in bpy.context.scene.objects if o.name.startswith("Bubble") or o.name.startswith("BubbleText") or o.name.startswith("BubbleRect")]:
-        bpy.data.objects.remove(obj, do_unlink=True)
-
+    for o in [o for o in bpy.context.scene.objects if o.name.startswith(("Bubble", "BubbleText", "BubbleRect"))]:
+        bpy.data.objects.remove(o, do_unlink=True)
 
 # ----------------------------- Titles -----------------------------
 
@@ -299,8 +315,14 @@ def ensure_title_obj():
     o.data.materials.append(mat)
     return o
 
+# ----------------------------- Ground & shots -----------------------------
 
-# ----------------------------- Shot presets -----------------------------
+def place_ground():
+    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, 0))
+    p = bpy.context.active_object
+    p.name = "Ground"
+    p.data.materials.append(get_or_create("ToonGround", lambda: make_toon_mat("ToonGround", (0.95, 0.96, 1.0, 1))))
+    return p
 
 def set_shot(cam, kind="two_shot"):
     if kind == "close_robot":
@@ -316,16 +338,19 @@ def set_shot(cam, kind="two_shot"):
         cam.location = (0.0, -7.0, 2.2)
         cam.rotation_euler = (radians(68), 0, 0)
 
+def layout_bubbles(lines):
+    clear_old_bubbles()
+    spots = [
+        (Vector((-2.8, 0, 3.0)), 1),
+        (Vector((2.8, 0, 3.0)), -1),
+        (Vector((-2.6, 0, 1.0)), 1),
+        (Vector((2.6, 0, 1.0)), -1),
+    ]
+    for i, text in enumerate(lines[:4]):
+        loc, side = spots[i]
+        make_speech_bubble(text, loc=tuple(loc), side=side)
 
-def place_ground():
-    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, 0))
-    p = bpy.context.active_object
-    p.name = "Ground"
-    p.data.materials.append(get_or_create("ToonGround", lambda: make_toon_mat("ToonGround", (0.95, 0.96, 1.0, 1))))
-    return p
-
-
-# ----------------------------- Panels data (fallback) -----------------------------
+# ----------------------------- Panels -----------------------------
 
 DEFAULT_PANELS = [
     {
@@ -365,7 +390,6 @@ DEFAULT_PANELS = [
     },
 ]
 
-
 def load_panels_from_directory(base_dir: Path):
     scripts_dir = base_dir / "scripts"
     if not scripts_dir.exists():
@@ -383,32 +407,18 @@ def load_panels_from_directory(base_dir: Path):
         panels.append({"title": title, "lines": lines})
     return panels or None
 
+# ----------------------------- Build & Render -----------------------------
 
-# ----------------------------- Render loop -----------------------------
-
-def setup_once():
-    hard_reset()
+def build_scene():
+    factory_reset()
     setup_world()
     cam = setup_camera()
     setup_lights()
     place_ground()
-    rob = make_robot()
-    cop = make_cop()
-    return cam, rob, cop
-
-
-def layout_bubbles(lines):
-    clear_old_bubbles()
-    spots = [
-        (Vector((-2.8, 0, 3.0)), 1),  # top-left
-        (Vector((2.8, 0, 3.0)), -1),  # top-right
-        (Vector((-2.6, 0, 1.0)), 1),  # bottom-left
-        (Vector((2.6, 0, 1.0)), -1),  # bottom-right
-    ]
-    for i, text in enumerate(lines[:4]):
-        loc, side = spots[i]
-        make_speech_bubble(text, loc=tuple(loc), side=side)
-
+    make_robot()
+    make_cop()
+    setup_freestyle()
+    return cam
 
 def render_panels(panels, output_dir, cam):
     title_obj = ensure_title_obj()
@@ -422,13 +432,13 @@ def render_panels(panels, output_dir, cam):
         bpy.ops.render.render(write_still=True)
         print(f"Rendered {panel_path}")
 
-
-# ----------------------------- Main -----------------------------
-
-if __name__ == "__main__":
+def main():
+    cam = build_scene()
     base_dir = Path(bpy.path.abspath("//"))
     output_dir = os.path.join(base_dir, "renders")
     panels = load_panels_from_directory(base_dir) or DEFAULT_PANELS
-    cam, _, _ = setup_once()
     setup_render(output_dir)
     render_panels(panels, output_dir, cam)
+
+if __name__ == "__main__":
+    main()
