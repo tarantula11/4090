@@ -72,3 +72,41 @@ OUT=/abs/path/renders VBR=12000 GOP=24 PRESET=FAST \
 ```
 
 Both batch renderers enforce Eevee/Filmic (AO, Bloom, SSR, soft shadows) before rendering each scene's frame range.
+
+### One-command previs render (fix black/white or blown-out frames)
+
+Run the all-in-one helper when you need immediately visible previs without hand-lighting or materials. It disables the compositor, applies Eevee/Filmic, adds a key light, tinted world, ground, optional backdrop, lightweight placeholders, and a camera that tracks the origin. It can output MP4 (H.264) or PNG sequences.
+
+Examples:
+
+```bash
+# MP4, toon placeholders, darker BG tint
+OUT=/abs/renders FORMAT=MP4 CRF=18 PRESET=GOOD APPLY_TOON=1 BG="#1e2230" \
+  blender -b your_project.blend -P tools/t2045_all_in_one_v2.py
+
+# PNG sequences at 1280x720, no toon look
+OUT=/abs/renders FORMAT=PNG RESX=1280 RESY=720 APPLY_TOON=0 \
+  blender -b your_project.blend -P tools/t2045_all_in_one_v2.py
+```
+
+Environment knobs:
+- `BG` (hex) and `WORLD_INT` (float) set world color/intensity.
+- `BACKDROP=0/1` toggles a rear card; `FOG=0/1` adds light volume scatter.
+- `APPLY_TOON=0/1` applies a toon material and outline to placeholders.
+- `SKIP_MASTER=0/1` skips the MASTER scene by default.
+
+Scene placeholders (auto-added): S01 rocket, S02 sun, S03 ship, S09 portal, other scenes get labeled signs (e.g., “MAX STUPIDITY”).
+
+### TTS audio import + rough lipsync
+
+Drop WAVs under `audio/<SceneName>/` (matching scene names, e.g., `S01_Launch_At_Sun/001_intro.wav`). Then run:
+
+```bash
+AUDIO_DIR=/abs/path/audio JAW_KEY=JawOpen START=1 GAP=6 \
+  blender -b your_project.blend -P tools/t2045_audio_lipsync.py
+```
+
+What it does:
+- Adds 3D Speakers for each `.wav` in the scene folder
+- Optionally drops VSE sound strips for waveform reference
+- Bakes amplitude to the `JawOpen` shapekey on the first mesh in the scene for previs mouth flaps (change `JAW_KEY` to match your rig)
