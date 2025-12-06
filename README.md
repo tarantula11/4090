@@ -25,3 +25,13 @@ When the folder exists, the renderer will render your custom files in alphabetic
 ### Included sample script
 
 This repository ships with a prewritten **TERMINATOR T-2045** storyboard under `scripts/` (cover + pages 1–20). You can use it as-is to generate panels or as a template for your own `.txt` files.
+
+### Bootstrap a 12-scene production file
+
+Kickstart a full T-2045 project file (12 scenes with cameras, collections, Eevee settings, and camera markers) using the bootstrapper:
+
+```bash
+blender -b -P tools/bootstrap_t2045_project.py
+```
+
+Each scene receives Characters/Environment/Props/FX/Lights/Audio collections, a shot-note text block, three placeholder cameras bound to markers, and toon-friendly Eevee defaults (AO, Bloom, SSR, Filmic grade). Edit within the generated `.blend` to drop in assets, animate, and render per scene.
